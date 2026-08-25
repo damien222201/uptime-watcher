@@ -1,0 +1,46 @@
+name: Daily Uptime Watcher
+
+on:
+  schedule:
+    # 5:00 AM UTC = 6:00 AM WAT (Nigeria)
+    - cron: "0 5 * * *"
+  workflow_dispatch: {}  # allows manual trigger from the Actions tab for testing
+
+permissions:
+  contents: write  # needed so the workflow can commit last_status.json back to the repo
+
+jobs:
+  check-uptime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run script
+        env:
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: 587
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python main.py
+
+      - name: Commit updated status
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f last_status.json ]; then
+            git add last_status.json
+            git diff --quiet --cached || git commit -m "Update last_status.json [skip ci]"
+            git push
+          else
+            echo "last_status.json not found — nothing to commit."
+          fi
